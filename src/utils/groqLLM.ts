@@ -1,3 +1,4 @@
+
 import axios from 'axios';
 
 export const groqLLM = async (prompt: string) => {
@@ -9,7 +10,7 @@ export const groqLLM = async (prompt: string) => {
         messages: [
           {
             role: 'system',
-            content: 'You are a scam listing detector. Always return valid JSON.'
+            content: 'You are a scam listing detector. Always return valid JSON in the exact format: {"suspicion": number, "flags": ["string"], "reasoning": "string"}'
           },
           {
             role: 'user',
@@ -17,7 +18,7 @@ export const groqLLM = async (prompt: string) => {
           }
         ],
         temperature: 0.7,
-        response_format: 'json' // Correct value as per OpenAI-compatible API
+        response_format: { type: "json_object" } 
       },
       {
         headers: {
@@ -35,13 +36,23 @@ export const groqLLM = async (prompt: string) => {
     }
 
     try {
-      return JSON.parse(content);
-    } catch {
+      const parsed = JSON.parse(content);
+      
+      // Validate the required fields
+      if (typeof parsed.suspicion !== 'number' || 
+          !Array.isArray(parsed.flags) || 
+          typeof parsed.reasoning !== 'string') {
+        throw new Error('Invalid response format from Groq API');
+      }
+      
+      return parsed;
+    } catch (parseError) {
       console.error('JSON Parse Error:', {
         response: response.data,
-        content
+        content,
+        parseError
       });
-      throw new Error('Failed to parse Groq response');
+      throw new Error('Failed to parse Groq response as valid JSON');
     }
   } catch (error) {
     if (axios.isAxiosError(error)) {
