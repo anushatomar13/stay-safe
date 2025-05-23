@@ -22,13 +22,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const cacheKey = analysis:${url};
+    const cacheKey = `analysis:${url}`;
     const cached = await redis.get(cacheKey);
     if (cached) return NextResponse.json(cached);
 
     // Rate limiting
     const ip = req.ip || 'unknown';
-    const rateKey = rate:${ip};
+    const rateKey = `rate:${ip}`;
     const count = await redis.incr(rateKey);
     await redis.expire(rateKey, 60);
     if (count > 5) {
