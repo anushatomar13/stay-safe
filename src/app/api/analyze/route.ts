@@ -5,6 +5,27 @@ import { Redis } from '@upstash/redis';
 
 const redis = Redis.fromEnv();
 
+// Helper function to get client IP
+function getClientIP(req: NextRequest): string {
+  // Try different headers for IP detection
+  const forwarded = req.headers.get('x-forwarded-for');
+  const realIP = req.headers.get('x-real-ip');
+  const cfConnectingIP = req.headers.get('cf-connecting-ip');
+  
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+  if (realIP) {
+    return realIP;
+  }
+  if (cfConnectingIP) {
+    return cfConnectingIP;
+  }
+  
+  // Fallback to a default identifier
+  return 'unknown';
+}
+
 export async function POST(req: NextRequest) {
   let browser;
   try {
@@ -27,7 +48,7 @@ export async function POST(req: NextRequest) {
     if (cached) return NextResponse.json(cached);
 
     // Rate limiting
-    const ip = req.ip || 'unknown';
+    const ip = getClientIP(req);
     const rateKey = `rate:${ip}`;
     const count = await redis.incr(rateKey);
     await redis.expire(rateKey, 60);
@@ -39,8 +60,16 @@ export async function POST(req: NextRequest) {
     }
 
     browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process'
+      ],
     });
 
     const page = await browser.newPage();
